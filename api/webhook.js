@@ -1,11 +1,27 @@
-// 使用简单的文件存储方式
-// 数据会持久化保存
+const fs = require('fs');
+const path = require('path');
 
-let dataStore = [];
-let initialized = false;
+const DATA_FILE = '/tmp/data.json';
 
-// 尝试从 Vercel 的临时存储恢复数据
-// 生产环境建议改用 Upstash Redis 或 Supabase
+function readData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const content = fs.readFileSync(DATA_FILE, 'utf-8');
+      return JSON.parse(content);
+    }
+  } catch (e) {
+    console.error('读取数据文件失败:', e);
+  }
+  return [];
+}
+
+function writeData(data) {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data), 'utf-8');
+  } catch (e) {
+    console.error('写入数据文件失败:', e);
+  }
+}
 
 export default function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -31,14 +47,18 @@ export default function handler(req, res) {
       "Last Modifier": body["Last Modifier"] || ""
     };
 
-    dataStore.push(record);
-    console.log("收到新记录，当前共", dataStore.length, "条");
+    const records = readData();
+    records.push(record);
+    writeData(records);
 
-    return res.status(200).json({ success: true, total: dataStore.length });
+    console.log("收到新记录，当前共", records.length, "条");
+
+    return res.status(200).json({ success: true, total: records.length });
   }
 
   if (req.method === 'GET') {
-    return res.status(200).json(dataStore);
+    const records = readData();
+    return res.status(200).json(records);
   }
 
   return res.status(405).json({ error: "Method not allowed" });
