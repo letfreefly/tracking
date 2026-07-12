@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运单查询系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header { text-align: center; color: #fff; padding: 20px 0; }
+        .header h1 { font-size: 26px; font-weight: 700; letter-spacing: 1px; }
+        .header p { font-size: 14px; opacity: 0.85; margin-top: 6px; }
+        .search-box {
+            background: #fff;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid #e8e8e8;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-box input:focus { border-color: #4facfe; }
+        .search-box .hint { color: #aaa; font-size: 13px; margin-top: 10px; }
+        .result-card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+            display: none;
+        }
+        .result-card.show { display: block; }
+        .result-card .tracking-header {
+            font-size: 16px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 14px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .result-card .tracking-number {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 16px;
+        }
+        .info-table { width: 100%; border-collapse: collapse; }
+        .info-table tr { border-bottom: 1px solid #f5f5f5; }
+        .info-table tr:last-child { border-bottom: none; }
+        .info-table td {
+            padding: 10px 8px;
+            font-size: 14px;
+            vertical-align: top;
+        }
+        .info-table td:first-child {
+            color: #999;
+            width: 130px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .info-table td:last-child { color: #333; word-break: break-all; }
+        .info-table img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-top: 4px;
+            border: 1px solid #eee;
+        }
+        .no-result {
+            text-align: center;
+            color: #999;
+            padding: 50px 0;
+            display: none;
+        }
+        .no-result.show { display: block; }
+        .no-result .icon { font-size: 50px; opacity: 0.3; margin-bottom: 12px; }
+        .footer { text-align: center; color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 24px; }
+        .loading {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            display: none;
+        }
+        .loading.show { display: block; }
+        .loading .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f0f0f0;
+            border-top-color: #4facfe;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>运单查询系统</h1>
+            <p>输入 Tracking Number 或 KNM 查询</p>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="请输入 Tracking Number 或 KNM..." autocomplete="off">
+            <div class="hint">支持输入 Tracking Number 或 KNM 进行精确查询</div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 10px;">正在加载数据...</p>
+        </div>
+        
+        <div class="result-card" id="resultCard">
+            <div class="tracking-header">查询结果</div>
+            <div class="tracking-number" id="trackingNumber"></div>
+            <table class="info-table" id="infoTable"></table>
+        </div>
+        
+        <div class="no-result" id="noResult">
+            <div class="icon">&#128269;</div>
+            <p>未找到匹配的记录</p>
+        </div>
+        
+        <div class="footer">运单查询系统</div>
+    </div>
+
+    <script>
+        var fieldConfig = [
+            {key: "Tracking Number", label: "Tracking Number"},
+            {key: "KNM", label: "KNM"},
+            {key: "Shipping Code", label: "Shipping Code"},
+            {key: "LSM", label: "LSM"},
+            {key: "Receipt Date", label: "Receipt Date"},
+            {key: "Tran.Mode", label: "Tran.Mode"},
+            {key: "Shipping Date", label: "Shipping Date"},
+            {key: "Last Modifier", label: "Last Modifier"}
+        ];
+
+        var searchInput = document.getElementById("searchInput");
+        var resultCard = document.getElementById("resultCard");
+        var noResult = document.getElementById("noResult");
+        var trackingNumber = document.getElementById("trackingNumber");
+        var infoTable = document.getElementById("infoTable");
+        var loading = document.getElementById("loading");
+
+        var records = [];
+
+        function loadData() {
+            loading.classList.add("show");
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "/api/data", true);
+            xhr.onload = function() {
+                loading.classList.remove("show");
+                if (xhr.status === 200) {
+                    try {
+                        records = JSON.parse(xhr.responseText);
+                    } catch(e) {
+                        console.error("数据解析失败", e);
+                    }
+                }
+            };
+            xhr.onerror = function() {
+                loading.classList.remove("show");
+            };
+            xhr.send();
+        }
+
+        loadData();
+        setInterval(loadData, 60000);
+
+        function renderResult(record) {
+            resultCard.classList.add("show");
+            noResult.classList.remove("show");
+            trackingNumber.textContent = record["Tracking Number"] || "-";
+            
+            var html = "";
+            for (var i = 0; i < fieldConfig.length; i++) {
+                var f = fieldConfig[i];
+                var val = record[f.key] || "-";
+                html += "<tr><td>" + f.label + "</td><td>" + val + "</td></tr>";
+            }
+            
+            var photo = record["Received Photo"] || "";
+            if (photo && photo !== "-" && photo !== "") {
+                html += "<tr><td>Received Photo</td><td><img src='" + photo + "' alt='签收照片' onerror='this.style.display=\"none\"'></td></tr>";
+            } else {
+                html += "<tr><td>Received Photo</td><td>-</td></tr>";
+            }
+            
+            infoTable.innerHTML = html;
+        }
+
+        function search(query) {
+            if (!query.trim()) {
+                resultCard.classList.remove("show");
+                noResult.classList.remove("show");
+                return;
+            }
+            
+            var q = query.trim();
+            var found = null;
+            
+            for (var i = 0; i < records.length; i++) {
+                var r = records[i];
+                var tn = r["Tracking Number"] || "";
+                var knm = r["KNM"] || "";
+                if (tn === q || knm === q) {
+                    found = r;
+                    break;
+                }
+            }
+            
+            if (found) {
+                renderResult(found);
+            } else {
+                resultCard.classList.remove("show");
+                noResult.classList.add("show");
+            }
+        }
+
+        searchInput.addEventListener("input", function() {
+            search(this.value);
+        });
+    </script>
+</body>
+</html>
