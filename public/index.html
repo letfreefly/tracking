@@ -124,7 +124,7 @@
 
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p style="margin-top: 10px;">正在加载数据...</p>
+            <p style="margin-top: 10px;">正在查询...</p>
         </div>
         
         <div class="result-card" id="resultCard">
@@ -160,34 +160,45 @@
         var infoTable = document.getElementById("infoTable");
         var loading = document.getElementById("loading");
 
-        var records = [];
-
-        function loadData() {
+        function search(query) {
+            if (!query.trim()) {
+                resultCard.classList.remove("show");
+                noResult.classList.remove("show");
+                return;
+            }
+            
             loading.classList.add("show");
+            resultCard.classList.remove("show");
+            noResult.classList.remove("show");
+            
             var xhr = new XMLHttpRequest();
-            xhr.open("GET", "/api/data", true);
+            xhr.open("GET", "/api/data?q=" + encodeURIComponent(query.trim()), true);
             xhr.onload = function() {
                 loading.classList.remove("show");
                 if (xhr.status === 200) {
                     try {
-                        records = JSON.parse(xhr.responseText);
+                        var records = JSON.parse(xhr.responseText);
+                        if (records && records.length > 0) {
+                            renderResult(records[0]);
+                        } else {
+                            noResult.classList.add("show");
+                        }
                     } catch(e) {
-                        console.error("数据解析失败", e);
+                        noResult.classList.add("show");
                     }
+                } else {
+                    noResult.classList.add("show");
                 }
             };
             xhr.onerror = function() {
                 loading.classList.remove("show");
+                noResult.classList.add("show");
             };
             xhr.send();
         }
 
-        loadData();
-        setInterval(loadData, 60000);
-
         function renderResult(record) {
             resultCard.classList.add("show");
-            noResult.classList.remove("show");
             trackingNumber.textContent = record["Tracking Number"] || "-";
             
             var html = "";
@@ -205,34 +216,6 @@
             }
             
             infoTable.innerHTML = html;
-        }
-
-        function search(query) {
-            if (!query.trim()) {
-                resultCard.classList.remove("show");
-                noResult.classList.remove("show");
-                return;
-            }
-            
-            var q = query.trim();
-            var found = null;
-            
-            for (var i = 0; i < records.length; i++) {
-                var r = records[i];
-                var tn = r["Tracking Number"] || "";
-                var knm = r["KNM"] || "";
-                if (tn === q || knm === q) {
-                    found = r;
-                    break;
-                }
-            }
-            
-            if (found) {
-                renderResult(found);
-            } else {
-                resultCard.classList.remove("show");
-                noResult.classList.add("show");
-            }
         }
 
         searchInput.addEventListener("input", function() {
