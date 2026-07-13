@@ -1,5 +1,3 @@
-// 通过 WPS 开放 API 实时查询多维表格数据
-
 const APP_ID = 'AK20260713BXNKNR';
 const APP_SECRET = '09a33425a6720d5a7e536ae2b94ce80e';
 const FILE_ID = 'couEiA3nLn7L';
@@ -25,14 +23,15 @@ async function getAccessToken() {
   
   const data = await response.json();
   cachedToken = data.access_token;
-  tokenExpireTime = Date.now() + 7000000; // 提前续期
+  tokenExpireTime = Date.now() + 7000000;
   return cachedToken;
 }
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -56,16 +55,20 @@ export default async function handler(req, res) {
       }
     );
     
-    const data = await response.json();
+    const result = await response.json();
     
-    // 提取需要的字段
+    // 如果API返回错误
+    if (result.code !== 0) {
+      return res.status(200).json({ error: 'API错误', code: result.code, msg: result.msg });
+    }
+    
     const targetFields = [
       "Tracking Number", "KNM", "Shipping Code", "LSM",
       "Received Photo", "Receipt Date", "Tran.Mode",
       "Shipping Date", "Last Modifier"
     ];
     
-    const records = (data.data?.records || []).map(record => {
+    const records = (result.data?.records || []).map(record => {
       let parsedFields = {};
       try {
         parsedFields = JSON.parse(record.fields);
@@ -73,28 +76,29 @@ export default async function handler(req, res) {
         parsedFields = record.fields || {};
       }
       
-      const result = {};
+      const item = {};
       targetFields.forEach(f => {
-        result[f] = parsedFields[f] || "";
+        item[f] = parsedFields[f] || "";
       });
       
-      // 处理签收照片 - 提取图片URL
-      if (result["Received Photo"] && Array.isArray(result["Received Photo"])) {
-        result["Received Photo"] = result["Received Photo"][0]?.source || "";
+      if (item["Received Photo"] && Array.isArray(item["Received Photo"])) {
+        item["Received Photo"] = item["Received Photo"][0]?.source || "";
       }
       
-      // 处理 Last Modifier - 提取用户名
-      if (result["Last Modifier"] && typeof result["Last Modifier"] === 'object') {
-        result["Last Modifier"] = result["Last Modifier"].nickName || "";
+      if (item["Last Modifier"] && typeof item["Last Modifier"] === 'object') {
+        item["Last Modifier"] = item["Last Modifier"].nickName || "";
       }
       
-      return result;
+      return item;
     });
 
     return res.status(200).json(records);
     
   } catch (error) {
-    console.error('API调用失败:', error);
-    return res.status(500).json({ error: '查询失败', detail: error.message });
+    return res.status(200).json({ 
+      error: error.message,
+      stack: error.stack,
+      message: '请检查API配置'
+    });
   }
 }
