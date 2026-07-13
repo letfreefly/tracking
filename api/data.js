@@ -3,14 +3,16 @@ const APP_SECRET = '09a33425a6720d5a7e536ae2b94ce80e';
 const FILE_ID = 'couEiA3nLn7L';
 const SHEET_ID = '48';
 
-let cachedToken = null;
-let tokenExpireTime = 0;
+// 你提供的有效 token（临时使用）
+let cachedToken = 'eyJhbGciOiJFUzI1NiIsImtpZCI6IjNiNTkyYWYwLTk5ODktNDRhOC1hMzQ3LTE4Yzc1MDQ4MTlmNCIsInR5cCI6IkpXVCJ9.eyJhaWQiOjE4NjkzMTE1NzcsImF0cCI6InVzZXIiLCJhdHMiOiJEWGp4TzhRIiwiYnVpIjpmYWxzZSwiY2lkIjo2MzA2MDk5MTAsImNsaSI6IkFLMjAyNjA3MTNCWE5LTlIiLCJjb2EiOjAsImV4cCI6MTc4MzkxMTk3OSwianN0IjpmYWxzZSwic3BpIjoxODY4NTc4MjkxfQ.XbUhcOPNq4ONLh0vac2n9_q-GBYZwaZ9pNIoBJ8G_bvQG9_Tx71KlQ-QcADtlJcHH6y7YKlOeDoa0lsMclEmzQ';
+let tokenExpireTime = Date.now() + 7000000; // 约2小时后过期
 
 async function getAccessToken() {
-  if (cachedToken && Date.now() < tokenExpireTime) {
+  if (Date.now() < tokenExpireTime) {
     return cachedToken;
   }
   
+  // token过期时重新获取
   const response = await fetch('https://openapi.wps.cn/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -57,7 +59,6 @@ export default async function handler(req, res) {
     
     const result = await response.json();
     
-    // 如果API返回错误
     if (result.code !== 0) {
       return res.status(200).json({ error: 'API错误', code: result.code, msg: result.msg });
     }
